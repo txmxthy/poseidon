@@ -9,3 +9,4 @@ iniconfig~=2.0.0
 coverage~=7.6.8
 packaging~=24.2
 tqdm~=4.67.1
+pytest-cov~=4.1.0
