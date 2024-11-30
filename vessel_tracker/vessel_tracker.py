@@ -1,4 +1,3 @@
-# src/vessel_tracker.py
 import json
 import math
 import gzip
