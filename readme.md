@@ -2,8 +2,16 @@
 
 A Python application for analyzing vessel AIS data to identify vessel stops.
 
-- This branch shows how I would split the project out into components to start scaling it past a single file hacky answer.
-- I'm going to do a bit of performance optimization, the speed is around 180k/s to 220k/s depending on docker/local run for me.
+<h3 align="center">
+  <img src="images/Screenshot%202024-11-30%20201642.png" alt="Screenshot of Boat locations" style="width:800px; height:auto;">
+</h3>
+
+- I'm going to do a bit of performance optimization, the current base speed is around 180k/s to 220k/s depending on docker/local run for me.
+- Future work: 
+  - Speedup, 
+  - Ensure consistency with definition of "stopped" (trying to get correct count)
+  - Animated map of vessel movement
+  - Could always do more tests
 
 
 ## Project Structure
