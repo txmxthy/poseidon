@@ -7,8 +7,8 @@ pytest --cov=src tests/
 # Build
 docker build -t vessel-tracker .
 
-# Run application
-docker run -v $(pwd)/data:/data vessel-tracker /data/input/sample.json.gz /data/output/output.geojson
+# Run application (will use input/output paths as arguments to the python module)
+docker run -v $(pwd)/data:/data vessel-tracker -m vessel_tracker.vessel_tracker /data/input/sample.json.gz /data/output/output.geojson
 
-# Run tests in container
-docker run vessel-tracker pytest tests/
+# Run tests (overrides the default CMD with pytest command)
+docker run vessel-tracker -m pytest tests/

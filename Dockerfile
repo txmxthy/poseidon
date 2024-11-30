@@ -12,5 +12,8 @@ COPY requirements.txt .
 RUN pip install -r requirements.txt && \
     pip install .
 
-# Use CMD instead of ENTRYPOINT for more flexibility (let us use tests, etc.)
-CMD ["python", "-m", "vessel_tracker.vessel_tracker"]
+# Set the entrypoint to python
+ENTRYPOINT ["python"]
+
+# Default command is the module name, but can be overridden
+CMD ["-m", "vessel_tracker.vessel_tracker"]
