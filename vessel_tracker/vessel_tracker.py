@@ -1,3 +1,4 @@
+# src/vessel_tracker.py
 import json
 import math
 import gzip
@@ -65,7 +66,7 @@ def count_lines(filepath: str) -> int:
     """Count number of lines in a file, handling both .gz and regular files."""
     count = 0
     with open_file(filepath) as f:
-        for _ in f:
+        for _ in tqdm(f, desc="Counting messages", unit=" msgs", colour="cyan"):
             count += 1
     return count
 
@@ -84,7 +85,14 @@ def process_input_file(input_path: str) -> Generator[Position, None, None]:
 
     total_lines = count_lines(input_path)
     with open_file(input_path) as f:
-        for line in tqdm(f, total=total_lines, desc="Processing messages"):
+        for line in tqdm(f,
+                         total=total_lines,
+                         desc="Processing messages",
+                         unit=" msgs",
+                         unit_scale=True,
+                         unit_divisor=1000,
+                         colour="green",
+                         bar_format="{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}, {rate_fmt}{postfix}]"):
             try:
                 message = json.loads(line)
                 position = parse_position_message(message)
@@ -100,63 +108,76 @@ def find_stops(positions: Generator[Position, None, None], min_duration: int = 3
     vessel_data: Dict[str, List[Position]] = {}
 
     # Group positions by vessel MMSI
-    print("Grouping positions by vessel...")
+    print("\nGrouping positions by vessel...")
     for pos in positions:
         if pos.mmsi not in vessel_data:
             vessel_data[pos.mmsi] = []
         vessel_data[pos.mmsi].append(pos)
 
     # Process each vessel's positions
-    print(f"Processing {len(vessel_data)} vessels...")
-    for mmsi in tqdm(vessel_data.keys(), desc="Analyzing vessels"):
-        positions = vessel_data[mmsi]
-        positions.sort(key=lambda x: x.timestamp)
+    vessel_count = len(vessel_data)
+    print(f"\nProcessing {vessel_count:,} vessels...")
 
-        stop_start = None
-        prev_pos = None
+    with tqdm(vessel_data.keys(),
+              desc="Analyzing vessels",
+              unit=" vessels",
+              colour="blue",
+              total=vessel_count,
+              bar_format="{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}, {rate_fmt}{postfix}]") as pbar:
 
-        for pos in positions:
-            if prev_pos is None:
+        for mmsi in pbar:
+            positions = vessel_data[mmsi]
+            positions.sort(key=lambda x: x.timestamp)
+
+            stop_start = None
+            prev_pos = None
+
+            for pos in positions:
+                if prev_pos is None:
+                    prev_pos = pos
+                    continue
+
+                speed = calculate_speed(prev_pos, pos)
+
+                if speed < 1.0:  # Less than 1 knot
+                    if stop_start is None:
+                        stop_start = prev_pos
+                elif stop_start is not None:
+                    if pos.timestamp - stop_start.timestamp >= min_duration:
+                        stops.append(stop_start)
+                    stop_start = None
+
                 prev_pos = pos
-                continue
 
-            speed = calculate_speed(prev_pos, pos)
-
-            if speed < 1.0:  # Less than 1 knot
-                if stop_start is None:
-                    stop_start = prev_pos
-            elif stop_start is not None:
-                if pos.timestamp - stop_start.timestamp >= min_duration:
-                    stops.append(stop_start)
-                stop_start = None
-
-            prev_pos = pos
-
-        # Check final stop
-        if stop_start is not None and \
-                positions[-1].timestamp - stop_start.timestamp >= min_duration:
-            stops.append(stop_start)
+            # Check final stop
+            if stop_start is not None and \
+                    positions[-1].timestamp - stop_start.timestamp >= min_duration:
+                stops.append(stop_start)
 
     return stops
 
 
 def create_geojson(stops: List[Position], output_path: str):
     """Create GeoJSON output file from list of stops."""
-    features = [
-        {
-            "type": "Feature",
-            "geometry": {
-                "type": "Point",
-                "coordinates": [stop.lon, stop.lat]
-            },
-            "properties": {
-                "mmsi": stop.mmsi,
-                "timestamp": stop.timestamp,
-                "datetime": datetime.utcfromtimestamp(stop.timestamp).isoformat()
-            }
-        }
-        for stop in tqdm(stops, desc="Creating GeoJSON features")
-    ]
+    features = []
+    with tqdm(stops,
+              desc="Creating GeoJSON features",
+              unit=" features",
+              colour="magenta",
+              bar_format="{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}, {rate_fmt}{postfix}]") as pbar:
+        for stop in pbar:
+            features.append({
+                "type": "Feature",
+                "geometry": {
+                    "type": "Point",
+                    "coordinates": [stop.lon, stop.lat]
+                },
+                "properties": {
+                    "mmsi": stop.mmsi,
+                    "timestamp": stop.timestamp,
+                    "datetime": datetime.utcfromtimestamp(stop.timestamp).isoformat()
+                }
+            })
 
     geojson = {
         "type": "FeatureCollection",
@@ -166,21 +187,21 @@ def create_geojson(stops: List[Position], output_path: str):
     # Ensure output directory exists
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
 
-    print(f"Writing output to {output_path}...")
+    print(f"\nWriting output to {output_path}...")
     with open(output_path, 'w') as f:
         json.dump(geojson, f, indent=2)
 
 
 def main(input_path: str, output_path: str):
     """Main function to process vessel data and identify stops."""
-    print(f"Processing input file: {input_path}")
-    print(f"Output will be written to: {output_path}")
+    print(f"\nProcessing input file: {input_path}")
+    print(f"Output will be written to: {output_path}\n")
 
     positions = process_input_file(input_path)
     stops = find_stops(positions)
     create_geojson(stops, output_path)
 
-    print(f"Processing complete. Found {len(stops)} stops.")
+    print(f"\nProcessing complete. Found {len(stops):,} stops.")
 
 
 if __name__ == '__main__':
