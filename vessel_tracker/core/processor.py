@@ -1,10 +1,8 @@
 import json
-from typing import Generator, List
+from typing import Generator, List, Tuple
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from tqdm import tqdm
 import multiprocessing as mp
-from functools import partial
-import itertools
 
 from ..models.position import Position
 from ..utils.file import open_file, count_lines
@@ -30,23 +28,26 @@ class MessageProcessor:
                 self._total_messages = count_lines(self.input_path)
         return self._total_messages
 
-    def _process_chunk(self, chunk: List[str]) -> List[Position]:
-        """Process a chunk of messages and return valid positions."""
+    def _process_chunk(self, chunk: List[str]) -> Tuple[List[Position], int]:
+        """Process a chunk of messages and return valid positions and count."""
         positions = []
+        processed_count = 0
         for line in chunk:
             try:
                 message = json.loads(line)
                 position = parse_position_message(message)
                 if position:
                     positions.append(position)
+                processed_count += 1
             except json.JSONDecodeError:
                 continue
-        return positions
+        return positions, processed_count
 
     @profiler.profile_function()
     def process_messages(self) -> Generator[Position, None, None]:
         """Process input file in parallel and yield valid position reports."""
         chunk = []
+        total_processed = 0
 
         with profiler.profile_section("parallel_processing"):
             with ProcessPoolExecutor(max_workers=self.max_workers) as executor:
@@ -70,13 +71,14 @@ class MessageProcessor:
                     )
 
                 # Process results as they complete
-                with tqdm(total=len(futures), **MESSAGE_PROCESSOR) as pbar:
+                with tqdm(total=self.total_messages, **MESSAGE_PROCESSOR) as pbar:
                     for future in as_completed(futures):
                         try:
-                            positions = future.result()
+                            positions, count = future.result()
+                            total_processed += count
+                            pbar.update(count)
                             for position in positions:
                                 yield position
-                            pbar.update(1)
                         except Exception as e:
                             print(f"Error processing chunk: {e}")
                             continue

@@ -3,10 +3,13 @@
 # Directory setup
 ensure-dirs:
 	mkdir -p data/input data/output
-	chmod 777 data/output
+	-chmod -R 777 data/output 2>/dev/null || true
+	-touch data/output/output.geojson 2>/dev/null || true
+	-chmod 666 data/output/output.geojson 2>/dev/null || true
 
 # Run with sample data
 run-sample: ensure-dirs
+	rm -f data/output/output.geojson
 	python -m vessel_tracker.cli data/input/sample.json.gz data/output/output.geojson
 
 # Run with sample data in Docker
